@@ -1,0 +1,89 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": "",
+    "region": "",
+    "password": ""
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key": "{{user `aws_secret_key`}}",
+    "region": "ap-south-1",
+    "source_ami": "ami-0d773a3b7bb2bb1c1",
+    "instance_type": "t2.micro",
+    "ssh_username": "ubuntu",
+    "ami_name": "rails-ruby-benchmark {{timestamp}}",
+    "run_tags": {
+      "Name": "Packer RailsRubyBench Builder{{user `builder_suffix`}}"
+    }
+  }],
+  "provisioners": [{
+    "type": "shell",
+    "inline": [
+      "while [ ! -f /var/lib/cloud/instance/boot-finished ]; do echo 'Waiting for cloud-init...'; sleep 1; done"
+    ]
+  },
+  {
+    "type": "file",
+    "source": "create_user.sh",
+    "destination": "/home/ubuntu/create_user.sh" 
+  },
+  {
+    "type": "shell",
+    "inline": [
+      "sh /home/ubuntu/create_user.sh {{user `password`}}"
+    ]
+  },
+  {
+    "type": "shell",
+    "execute_command": "chmod +x {{ .Path }}; sudo su deploy -c '{{ .Vars }} /bin/bash -e -l {{ .Path }};'",
+    "environment_vars": [
+      "PASSWORD={{user `password`}}"
+    ],
+    "script": "rvm_dependencies.sh"
+  },
+  {
+    "type": "shell",
+    "execute_command": "chmod +x {{ .Path }}; sudo su deploy -c '{{ .Vars }} /bin/bash -e -l {{ .Path }}'",
+    "script": "install_ruby.sh"
+  },
+  {
+    "type": "shell",
+    "environment_vars": [
+      "PASSWORD={{user `password`}}"
+    ],
+    "execute_command": "chmod +x {{ .Path }}; sudo su deploy -c '{{ .Vars }} /bin/bash -e -l {{ .Path }}'",
+    "script": "install_nginx.sh"
+  },
+  {
+    "type": "file",
+    "source": "puma.rb",
+    "destination": "/tmp/puma.rb"
+  },
+  {
+    "type": "file",
+    "source": "database.yml",
+    "destination": "/tmp/database.yml"
+  },
+  {
+    "type": "file",
+    "source": "secrets.yml",
+    "destination": "/tmp/secrets.yml"
+  },
+  {
+    "type": "shell",
+    "execute_command": "chmod +x {{ .Path }}; sudo su deploy -c '{{ .Vars }} /bin/bash -e -l {{ .Path }}'",
+    "script": "create_directories.sh"
+  },
+  {
+    "type":"shell",
+    "inline": ["sudo mv /tmp/puma.rb /home/deploy/apps/DevOps-RoR/shared/puma.rb",
+      "sudo mv /tmp/database.yml /home/deploy/apps/DevOps-RoR/shared/config/database.yml",
+      "sudo mv /tmp/secrets.yml /home/deploy/apps/DevOps-RoR/shared/config/secrets.yml",
+      "sudo chown deploy:deploy /home/deploy/apps/DevOps-RoR/shared/puma.rb",
+      "sudo chown deploy:deploy /home/deploy/apps/DevOps-RoR/shared/config/database.yml",
+      "sudo chown deploy:deploy /home/deploy/apps/DevOps-RoR/shared/config/secrets.yml"
+    ]
+  }]
+}
